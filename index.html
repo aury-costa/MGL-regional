@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MGL Regional - Gestão de Performance</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <style>
+        body { background-color: #f1f5f9; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        .bg-executado { background-color: #2d6a4f; color: white; }
+        .bg-nao-executado { background-color: #bc4749; color: white; }
+        .bg-justificado { background-color: #ee9b00; color: white; }
+        .bg-fds { background-color: #e5e7eb; color: #9ca3af; }
+        th, td { border: 1px solid #9ca3af; text-align: center; padding: 5px; font-size: 11px; min-width: 28px; height: 32px; }
+        .nome-loja { text-align: left; padding-left: 10px; font-weight: bold; background-color: #f5dd7c; min-width: 120px; font-size: 15px; cursor: pointer; }
+        .titulo-regional { background-color: #1b4332; color: white; padding: 10px; font-weight: 500; text-transform: uppercase; font-size: 20px; }
+        .hidden-store { display: none; }
+        /* AJUSTE: Aumentado de 65vh para 82vh para o dashboard descer e mostrar mais lojas */
+        .scroll-container { max-height: 82vh; overflow-y: auto; border: 1px solid #cbd5e1; }
+    </style>
+</head>
+<body class="p-2">
+
+    <div id="capture-area" class="max-w-[100%] mx-auto bg-white shadow-2xl rounded-lg overflow-hidden border border-gray-400">
+        
+        <div class="bg-[#89d5f3] p-4 border-b-2 border-black flex flex-wrap justify-between items-center gap-4">
+            <div>
+                <h1 class="text-2xl font-black text-black uppercase italic tracking-tight">Minha Gestão de Loja (MGL)</h1>
+                <div class="flex gap-4 mt-2 text-[10px] font-bold uppercase">
+                    <span class="flex items-center gap-1"><div class="w-10 h-6 bg-executado border border-black/20"></div> EXECUTADO</span>
+                    <span class="flex items-center gap-1"><div class="w-10 h-6 bg-nao-executado border border-black/20"></div> NÃO REALIZADO</span>
+                    <span class="flex items-center gap-1"><div class="w-10 h-6 bg-justificado border border-black/20"></div> JUSTIFICADO</span>
+                </div>
+            </div>
+
+            <div class="flex flex-wrap gap-2 items-end">
+                <div class="flex flex-col">
+                    <label class="text-[10px] font-bold">MÊS DE REFERÊNCIA</label>
+                    <input type="month" id="monthPicker" class="border-2 border-black p-1 text-sm font-bold" onchange="changeMonth()">
+                </div>
+                <button onclick="takeScreenshot()" class="bg-blue-600 text-white px-3 py-2 text-xs rounded font-bold hover:bg-blue-700 shadow-md">📸 PRINT WHATSAPP</button>
+                <button onclick="generatePDFReport()" class="bg-red-700 text-white px-3 py-2 text-xs rounded font-bold hover:bg-red-800 shadow-md">📄 PDF DETALHADO</button>
+                <button onclick="showAllStores()" class="bg-gray-600 text-white px-3 py-2 text-xs rounded font-bold">👁 MOSTRAR TODAS</button>
+                <button onclick="clearMonthData()" class="bg-white text-red-600 border border-red-600 px-3 py-2 text-xs rounded font-bold hover:bg-red-50">LIMPAR</button>
+            </div>
+        </div>
+
+        <div class="p-2 space-y-4 scroll-container">
+            <section class="border border-gray-400 shadow-sm">
+                <div class="titulo-regional flex justify-between">
+                    <span>Regional Claudio</span>
+                    <span id="meta-claudio" class="text-yellow-400">MÉDIA: 100%</span>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full border-collapse">
+                        <thead class="bg-gray-50"><tr id="header-claudio"></tr></thead>
+                        <tbody id="body-claudio"></tbody>
+                    </table>
+                </div>
+            </section>
+
+            <section class="border border-gray-400 shadow-sm">
+                <div class="titulo-regional flex justify-between">
+                    <span>Regional Lekssey</span>
+                    <span id="meta-lekssey" class="text-yellow-400">MÉDIA: 100%</span>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full border-collapse">
+                        <thead class="bg-gray-50"><tr id="header-lekssey"></tr></thead>
+                        <tbody id="body-lekssey"></tbody>
+                    </table>
+                </div>
+            </section>
+        </div>
+
+        <div class="py-2 px-3 bg-slate-900 text-white border-t-4 border-yellow-500">
+            <div id="dashCards" class="grid grid-cols-1 md:grid-cols-4 gap-4">
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const LOJAS_PADRAO = {
+            claudio: ["001-AFL", "002-APIACAS", "003-PAR", "010-GTA", "011-PEIXOTO", "015-TNN", "502-CA-GTA-C", "503-CA-SNP-J", "506-CA-SNP-A", "508-CA-MTP-I"],
+            lekssey: ["004-SORBH", "005-LRVCEN", "006-MUTUM", "008-LRVVEN", "009-TAPURAH", "012-SORBR", "018-SOR-RDS", "505-CA-SORRI"]
+        };
+
+        let db = JSON.parse(localStorage.getItem('mgl_v4_data')) || {};
+        let hiddenStores = JSON.parse(localStorage.getItem('mgl_hidden_v4')) || [];
+        let currentMonthKey = "";
+
+        function init() {
+            const agora = new Date();
+            const mesFormatado = agora.toISOString().substring(0, 7);
+            document.getElementById('monthPicker').value = mesFormatado;
+            currentMonthKey = mesFormatado;
+            checkMonthStructure(currentMonthKey);
+            renderAll();
+        }
+
+        function checkMonthStructure(key) {
+            if (!db[key]) {
+                db[key] = { claudio: [], lekssey: [] };
+                LOJAS_PADRAO.claudio.forEach(n => db[key].claudio.push({ name: n, status: {} }));
+                LOJAS_PADRAO.lekssey.forEach(n => db[key].lekssey.push({ name: n, status: {} }));
+                save();
+            }
+        }
+
+        function toggleStoreVisibility(name) {
+            if (hiddenStores.includes(name)) {
+                hiddenStores = hiddenStores.filter(n => n !== name);
+            } else {
+                if(confirm(`Ocultar a loja ${name} da visualização?`)) hiddenStores.push(name);
+            }
+            localStorage.setItem('mgl_hidden_v4', JSON.stringify(hiddenStores));
+            renderAll();
+        }
+
+        function showAllStores() { hiddenStores = []; localStorage.setItem('mgl_hidden_v4', '[]'); renderAll(); }
+
+        function toggle(region, sIdx, day) {
+            const [year, month] = currentMonthKey.split('-').map(Number);
+            const date = new Date(year, month - 1, day);
+            if (date.getDay() === 0 || date.getDay() === 6) return;
+
+            const store = db[currentMonthKey][region][sIdx];
+            const currentObj = store.status[day] || { type: undefined };
+            let nextType, qty = 0, reason = "";
+
+            if (!currentObj.type) nextType = 'G';
+            else if (currentObj.type === 'G') {
+                nextType = 'R';
+                qty = prompt("Quantidade de produtos NÃO realizados:");
+                reason = prompt("Motivo do erro:");
+            } else if (currentObj.type === 'R') {
+                nextType = 'Y';
+                qty = prompt("Quantidade de produtos JUSTIFICADOS:");
+                reason = prompt("Justificativa:");
+            } else nextType = undefined;
+
+            if (nextType) store.status[day] = { type: nextType, qty: qty || 0, reason: reason || "" };
+            else delete store.status[day];
+
+            save(); renderAll();
+        }
+
+        function renderTable(region) {
+            const header = document.getElementById(`header-${region}`);
+            const body = document.getElementById(`body-${region}`);
+            const [year, month] = currentMonthKey.split('-').map(Number);
+            const daysInMonth = new Date(year, month, 0).getDate();
+
+            let hHtml = `<th class="nome-loja">EMPRESA</th>`;
+            for (let i = 1; i <= daysInMonth; i++) {
+                const dw = new Date(year, month - 1, i).getDay();
+                hHtml += `<th class="${(dw===0 || dw===6) ? 'bg-fds' : 'bg-white'}">${dw===0?'D':dw===6?'S':i}</th>`;
+            }
+            hHtml += `<th class="bg-yellow-200">META%</th><th class="bg-gray-100">ITENS</th>`;
+            header.innerHTML = hHtml;
+
+            body.innerHTML = '';
+            let regionalMetaSum = 0;
+
+            db[currentMonthKey][region].forEach((store, sIdx) => {
+                const isHidden = hiddenStores.includes(store.name);
+                const tr = document.createElement('tr');
+                if (isHidden) tr.classList.add('hidden-store');
+
+                let wd = 0, redDays = 0, storeItems = 0;
+                let rHtml = `<td class="nome-loja" title="Clique para ocultar" onclick="toggleStoreVisibility('${store.name}')">${store.name}</td>`;
+                
+                for (let i = 1; i <= daysInMonth; i++) {
+                    const dt = new Date(year, month - 1, i);
+                    const dw = dt.getDay();
+                    const st = store.status[i] || {};
+                    let c = (dw===0 || dw===6) ? 'bg-fds' : 'bg-white';
+
+                    if (st.type === 'G') c = 'bg-executado';
+                    if (st.type === 'R') { c = 'bg-nao-executado'; redDays++; storeItems += parseInt(st.qty || 0); }
+                    if (st.type === 'Y') { c = 'bg-justificado'; storeItems += parseInt(st.qty || 0); }
+                    if (dw!==0 && dw!==6) wd++;
+                    
+                    let tit = st.reason ? `title="Qtd: ${st.qty} | Obs: ${st.reason}"` : "";
+                    rHtml += `<td ${tit} class="${c} cursor-pointer" onclick="toggle('${region}', ${sIdx}, ${i})"></td>`;
+                }
+
+                const meta = wd > 0 ? Math.round(100 - ((redDays/wd)*100)) : 100;
+                regionalMetaSum += meta;
+
+                rHtml += `<td class="font-bold ${meta < 100 ? 'text-red-600' : 'text-green-700'}">${meta}%</td>`;
+                rHtml += `<td class="font-bold text-gray-600">${storeItems}</td>`;
+                tr.innerHTML = rHtml;
+                body.appendChild(tr);
+            });
+            const regAvg = Math.round(regionalMetaSum / db[currentMonthKey][region].length);
+            document.getElementById(`meta-${region}`).innerText = `MÉDIA: ${regAvg}%`;
+        }
+
+        function updateDashboard() {
+            const all = [...db[currentMonthKey].claudio, ...db[currentMonthKey].lekssey];
+            let sumMeta = 0, totalQty = 0, top = {n: '-', p: -1}, worst = {n: '-', p: 101};
+
+            all.forEach(s => {
+                let red = 0, wd = 0, sQty = 0;
+                for(let i=1; i<=31; i++) {
+                    const dw = new Date(currentMonthKey.split('-')[0], currentMonthKey.split('-')[1]-1, i).getDay();
+                    const st = s.status[i];
+                    if(dw !== 0 && dw !== 6) wd++;
+                    if(st) {
+                        if(st.type === 'R') red++;
+                        totalQty += parseInt(st.qty || 0);
+                    }
+                }
+                const p = wd > 0 ? Math.round(100 - ((red/wd)*100)) : 100;
+                sumMeta += p;
+                if(p > top.p) top = {n: s.name, p: p};
+                if(p < worst.p) worst = {n: s.name, p: p};
+            });
+
+            const avg = Math.round(sumMeta / all.length);
+
+            document.getElementById('dashCards').innerHTML = `
+                <div class="bg-slate-800 p-4 border-l-4 border-green-500 rounded text-sm">
+                    <p class="text-[13px] font-bold text-green-400 uppercase">#1 DESTAQUE POSITIVO</p>
+                    <p class="text-xl font-black">${top.n} (${top.p}%)</p>
+                </div>
+                <div class="bg-slate-800 p-4 border-l-4 border-red-500 rounded text-sm">
+                    <p class="text-[13px] font-bold text-red-400 uppercase">MAIOR PENDÊNCIA</p>
+                    <p class="text-xl font-black">${worst.n} (${worst.p}%)</p>
+                </div>
+                <div class="bg-slate-800 p-4 border-l-4 border-blue-500 rounded text-sm">
+                    <p class="text-[13px] font-bold text-blue-400 uppercase">MÉDIA REGIONAL GERAL</p>
+                    <p class="text-2xl font-black">${avg}%</p>
+                </div>
+                <div class="bg-slate-800 p-4 border-l-4 border-orange-500 rounded text-sm">
+                    <p class="text-[13px] font-bold text-orange-400 uppercase">TOTAL ITENS PENDENTES</p>
+                    <p class="text-2xl font-black">${totalQty}</p>
+                </div>
+            `;
+        }
+
+        async function takeScreenshot() {
+            const area = document.getElementById('capture-area');
+            const canvas = await html2canvas(area);
+            const link = document.createElement('a');
+            link.download = `MGL_Regional_${currentMonthKey}.png`;
+            link.href = canvas.toDataURL();
+            link.click();
+        }
+
+        function generatePDFReport() {
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF();
+            let y = 20;
+            doc.setFontSize(16); doc.text(`Relatório de Ocorrências MGL - ${currentMonthKey}`, 10, 15);
+            doc.setFontSize(10);
+            ['claudio', 'lekssey'].forEach(reg => {
+                doc.setFont(undefined, 'bold'); doc.text(`REGIONAL: ${reg.toUpperCase()}`, 10, y); y += 8;
+                doc.setFont(undefined, 'normal');
+                db[currentMonthKey][reg].forEach(s => {
+                    let hasIssue = false;
+                    for(let d in s.status) if(s.status[d].type !== 'G') hasIssue = true;
+                    if(hasIssue) {
+                        doc.text(`> LOJA: ${s.name}`, 15, y); y += 6;
+                        for(let d in s.status) {
+                            const st = s.status[d];
+                            if(st.type !== 'G') {
+                                const tipo = st.type === 'R' ? 'FALHA' : 'JUSTIF.';
+                                doc.text(`   Dia ${d}: [${tipo}] Qtd: ${st.qty} - Motivo: ${st.reason}`, 20, y); y += 5;
+                            }
+                        }
+                        y += 3;
+                    }
+                });
+                y += 5;
+            });
+            doc.save(`Relatorio_Pendencias_${currentMonthKey}.pdf`);
+        }
+
+        function save() { localStorage.setItem('mgl_v4_data', JSON.stringify(db)); }
+        function renderAll() { renderTable('claudio'); renderTable('lekssey'); updateDashboard(); }
+        function changeMonth() { currentMonthKey = document.getElementById('monthPicker').value; checkMonthStructure(currentMonthKey); renderAll(); }
+        function clearMonthData() { if(confirm("Deseja resetar as cores deste mês?")) { ['claudio','lekssey'].forEach(r => db[currentMonthKey][r].forEach(s => s.status = {})); save(); renderAll(); } }
+
+        init();
+    </script>
+</body>
+</html>
