@@ -3,13 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sistema de Gestão Regional - Full Cloud</title>
+    <title>Sistema de Gestão Regional</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-    
     <style>
-        body { background-color: #f1f5f9; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+        body { background-color: #f1f5f9; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
         .bg-executado { background-color: #2d6a4f; color: white; }
         .bg-nao-executado { background-color: #bc4749; color: white; }
         .bg-justificado { background-color: #ee9b00; color: white; }
@@ -18,32 +17,23 @@
         .nome-loja { text-align: left; padding-left: 10px; font-weight: bold; background-color: #f5dd7c; min-width: 120px; font-size: 15px; cursor: pointer; }
         .titulo-regional { background-color: #1b4332; color: white; padding: 10px; font-weight: 500; text-transform: uppercase; font-size: 20px; }
         .hidden-store { display: none; }
-        
-        /* Ajuste Fino de Scroll e Layout */
-        #capture-area { display: flex; flex-direction: column; flex-grow: 1; overflow: hidden; border: 8px solid #cbd5e1; }
-        .scroll-container { flex-grow: 1; overflow-y: auto; padding: 8px; background: white; }
-        
+        .scroll-container { max-height: 70vh; overflow-y: auto; border: 1px solid #cbd5e1; }
         .tab-active { border-bottom: 4px solid #1b4332; color: #1b4332; font-weight: 900; }
-        #loading-overlay { position: fixed; inset: 0; background: rgba(255,255,255,0.9); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 100; }
     </style>
 </head>
 <body class="p-2">
 
-    <div id="loading-overlay">
-        <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mb-4"></div>
-        <b class="text-blue-800">Sincronizando com Firebase...</b>
-    </div>
-
-    <div class="flex-none mb-2 flex gap-4 bg-white p-3 rounded shadow-md overflow-x-auto">
+    <div class="max-w-[100%] mx-auto mb-2 flex gap-4 bg-white p-3 rounded shadow-md overflow-x-auto">
         <button onclick="switchTab('MGL')" id="btn-MGL" class="px-4 py-2 uppercase text-sm tab-active">📊 MGL</button>
         <button onclick="switchTab('QUEBRA')" id="btn-QUEBRA" class="px-4 py-2 uppercase text-sm">📉 Quebra Diária</button>
         <button onclick="switchTab('MESA')" id="btn-MESA" class="px-4 py-2 uppercase text-sm">🔥 Mesa Quente</button>
     </div>
 
-    <div id="capture-area" class="bg-white shadow-2xl rounded-lg overflow-hidden border border-gray-400">
-        <div class="flex-none bg-[#89d5f3] p-4 border-b-2 border-black flex flex-wrap justify-between items-center gap-4">
+    <div id="capture-area" class="max-w-[100%] mx-auto bg-white shadow-2xl rounded-lg overflow-hidden border border-gray-400">
+        
+        <div class="bg-[#89d5f3] p-4 border-b-2 border-black flex flex-wrap justify-between items-center gap-4">
             <div>
-                <h1 id="main-title" class="text-2xl font-black text-black uppercase italic tracking-tight">MGL</h1>
+                <h1 id="main-title" class="text-2xl font-black text-black uppercase italic tracking-tight">Minha Gestão de Loja (MGL)</h1>
                 <div class="flex gap-4 mt-2 text-[10px] font-bold uppercase">
                     <span class="flex items-center gap-1"><div class="w-10 h-6 bg-executado border border-black/20"></div> EXECUTADO</span>
                     <span class="flex items-center gap-1"><div class="w-10 h-6 bg-nao-executado border border-black/20"></div> NÃO REALIZADO</span>
@@ -54,247 +44,246 @@
             <div class="flex flex-wrap gap-2 items-end">
                 <div class="flex flex-col">
                     <label class="text-[10px] font-bold">MÊS DE REFERÊNCIA</label>
-                    <input type="month" id="monthPicker" class="border-2 border-black p-1 text-sm font-bold">
+                    <input type="month" id="monthPicker" class="border-2 border-black p-1 text-sm font-bold" onchange="changeMonth()">
                 </div>
-                <button onclick="takeScreenshot()" class="bg-blue-600 text-white px-3 py-2 text-xs rounded font-bold shadow-md hover:bg-blue-700">📸 PRINT WHATSAPP</button>
-                <button onclick="generatePDF()" class="bg-red-700 text-white px-3 py-2 text-xs rounded font-bold shadow-md hover:bg-red-800">📄 PDF DETALHADO</button>
+                <button onclick="takeScreenshot()" class="bg-blue-600 text-white px-3 py-2 text-xs rounded font-bold hover:bg-blue-700 shadow-md">📸 PRINT WHATSAPP</button>
+                <button onclick="generatePDFReport()" class="bg-red-700 text-white px-3 py-2 text-xs rounded font-bold hover:bg-red-800 shadow-md">📄 PDF DETALHADO</button>
                 <button onclick="showAllStores()" class="bg-gray-600 text-white px-3 py-2 text-xs rounded font-bold">👁 MOSTRAR TODAS</button>
                 <button onclick="clearMonthData()" class="bg-white text-red-600 border border-red-600 px-3 py-2 text-xs rounded font-bold hover:bg-red-50">LIMPAR</button>
             </div>
         </div>
 
-        <div class="scroll-container space-y-4">
+        <div class="p-2 space-y-4 scroll-container">
             <section class="border border-gray-400 shadow-sm">
-                <div class="titulo-regional flex justify-between"><span>Regional Claudio</span><span id="meta-claudio" class="text-yellow-400 font-bold">MÉDIA: 0%</span></div>
-                <div class="overflow-x-auto"><table class="w-full border-collapse"><thead class="bg-gray-50"><tr id="header-claudio"></tr></thead><tbody id="body-claudio"></tbody></table></div>
+                <div class="titulo-regional flex justify-between">
+                    <span>Regional Claudio</span>
+                    <span id="meta-claudio" class="text-yellow-400">MÉDIA: 100%</span>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full border-collapse">
+                        <thead class="bg-gray-50"><tr id="header-claudio"></tr></thead>
+                        <tbody id="body-claudio"></tbody>
+                    </table>
+                </div>
             </section>
+
             <section class="border border-gray-400 shadow-sm">
-                <div class="titulo-regional flex justify-between"><span>Regional Lekssey</span><span id="meta-lekssey" class="text-yellow-400 font-bold">MÉDIA: 0%</span></div>
-                <div class="overflow-x-auto"><table class="w-full border-collapse"><thead class="bg-gray-50"><tr id="header-lekssey"></tr></thead><tbody id="body-lekssey"></tbody></table></div>
+                <div class="titulo-regional flex justify-between">
+                    <span>Regional Lekssey</span>
+                    <span id="meta-lekssey" class="text-yellow-400">MÉDIA: 100%</span>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full border-collapse">
+                        <thead class="bg-gray-50"><tr id="header-lekssey"></tr></thead>
+                        <tbody id="body-lekssey"></tbody>
+                    </table>
+                </div>
             </section>
         </div>
 
-        <div id="dashCards" class="flex-none grid grid-cols-2 md:grid-cols-4 gap-2 py-2 px-3 bg-slate-900 text-white border-t-4 border-yellow-500">
-            </div>
+        <div class="py-2 px-3 bg-slate-900 text-white border-t-4 border-yellow-500">
+            <div id="dashCards" class="grid grid-cols-1 md:grid-cols-4 gap-4"></div>
+        </div>
     </div>
 
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-        import { getDatabase, ref, set, onValue } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
-
-        const firebaseConfig = {
-            apiKey: "AIzaSyByJCKoT9xEYJp_gTflGTg1GxtwSth-CEA",
-            authDomain: "gestao-regional-d7b82.firebaseapp.com",
-            projectId: "gestao-regional-d7b82",
-            databaseURL: "https://gestao-regional-d7b82-default-rtdb.firebaseio.com/",
-            storageBucket: "gestao-regional-d7b82.firebasestorage.app",
-            messagingSenderId: "846157242095",
-            appId: "1:846157242095:web:3143dff79207303ccec51a"
-        };
-
-        const app = initializeApp(firebaseConfig);
-        const rdb = getDatabase(app);
-
+    <script>
         const LOJAS_PADRAO = {
             claudio: ["001-AFL", "002-APIACAS", "003-PAR", "010-GTA", "011-PEIXOTO", "015-TNN", "502-CA-GTA-C", "503-CA-SNP-J", "506-CA-SNP-A", "508-CA-MTP-I"],
-            lekssey: ["004-SORBH", "005-LRVCEN", "006-MUTUM", "008-LRVVEN", "012-SORBR", "018-SOR-RDS", "505-CA-SORRI"]
+            lekssey: ["004-SORBH", "005-LRVCEN", "006-MUTUM", "008-LRVVEN", "009-TAPURAH", "012-SORBR", "018-SOR-RDS", "505-CA-SORRI"]
         };
 
-        window.currentTab = 'MGL';
-        window.currentMonthKey = new Date().toISOString().substring(0, 7);
-        window.db = { MGL: {}, QUEBRA: {}, MESA: {} };
-        window.hiddenStoresData = { MGL: [], QUEBRA: [], MESA: [] };
+        let currentTab = 'MGL'; 
+        let db = JSON.parse(localStorage.getItem('regional_data_v6')) || { MGL: {}, QUEBRA: {}, MESA: {} };
+        let hiddenStoresData = JSON.parse(localStorage.getItem('regional_hidden_v6')) || { MGL: [], QUEBRA: [], MESA: [] };
+        let currentMonthKey = "";
 
-        onValue(ref(rdb, 'data/'), (snapshot) => {
-            const val = snapshot.val();
-            if (val) window.db = val;
-            checkMonthStructure();
+        function switchTab(tabName) {
+            currentTab = tabName;
+            const titles = { 'MGL': 'Minha Gestão de Loja (MGL)', 'QUEBRA': 'Quebra Diária', 'MESA': 'Mesa Quente' };
+            document.getElementById('main-title').innerText = titles[tabName];
+            ['MGL', 'QUEBRA', 'MESA'].forEach(t => {
+                document.getElementById(`btn-${t}`).classList.toggle('tab-active', t === tabName);
+            });
+            checkMonthStructure(currentMonthKey);
             renderAll();
-            document.getElementById('loading-overlay').style.display = 'none';
-        });
+        }
 
-        onValue(ref(rdb, 'hiddenStores/'), (snapshot) => {
-            const val = snapshot.val();
-            if (val) window.hiddenStoresData = val;
-            renderAll();
-        });
+        function init() {
+            const agora = new Date();
+            const mesFormatado = agora.toISOString().substring(0, 7);
+            document.getElementById('monthPicker').value = mesFormatado;
+            currentMonthKey = mesFormatado;
+            switchTab('MGL');
+        }
 
-        window.switchTab = (tabName) => {
-            window.currentTab = tabName;
-            document.getElementById('main-title').innerText = (tabName === 'MGL' ? 'Minha Gestão de Loja (MGL)' : tabName === 'QUEBRA' ? 'Quebra Diária' : 'Mesa Quente');
-            ['MGL', 'QUEBRA', 'MESA'].forEach(t => document.getElementById(`btn-${t}`).classList.toggle('tab-active', t === tabName));
-            checkMonthStructure();
-            renderAll();
-        };
-
-        window.changeMonth = () => {
-            window.currentMonthKey = document.getElementById('monthPicker').value;
-            checkMonthStructure();
-            renderAll();
-        };
-
-        function checkMonthStructure() {
-            if (!window.db[window.currentTab]) window.db[window.currentTab] = {};
-            if (!window.db[window.currentTab][window.currentMonthKey]) {
-                const base = { claudio: [], lekssey: [] };
-                LOJAS_PADRAO.claudio.forEach(n => base.claudio.push({ name: n, status: {} }));
-                LOJAS_PADRAO.lekssey.forEach(n => base.lekssey.push({ name: n, status: {} }));
-                set(ref(rdb, `data/${window.currentTab}/${window.currentMonthKey}`), base);
+        function checkMonthStructure(key) {
+            if (!db[currentTab][key]) {
+                db[currentTab][key] = { claudio: [], lekssey: [] };
+                LOJAS_PADRAO.claudio.forEach(n => db[currentTab][key].claudio.push({ name: n, status: {} }));
+                LOJAS_PADRAO.lekssey.forEach(n => db[currentTab][key].lekssey.push({ name: n, status: {} }));
+                save();
             }
         }
 
-        window.toggle = (region, sIdx, day) => {
-            const [year, month] = window.currentMonthKey.split('-').map(Number);
+        function toggleStoreVisibility(name) {
+            let list = hiddenStoresData[currentTab];
+            if (list.includes(name)) {
+                hiddenStoresData[currentTab] = list.filter(n => n !== name);
+            } else {
+                if(confirm(`Ocultar a loja ${name} apenas no painel ${currentTab}?`)) {
+                    hiddenStoresData[currentTab].push(name);
+                }
+            }
+            localStorage.setItem('regional_hidden_v6', JSON.stringify(hiddenStoresData));
+            renderAll();
+        }
+
+        function showAllStores() { 
+            hiddenStoresData[currentTab] = []; 
+            localStorage.setItem('regional_hidden_v6', JSON.stringify(hiddenStoresData)); 
+            renderAll(); 
+        }
+
+        function toggle(region, sIdx, day) {
+            const [year, month] = currentMonthKey.split('-').map(Number);
             const date = new Date(year, month - 1, day);
             if (date.getDay() === 0 || date.getDay() === 6) return;
-            const store = window.db[window.currentTab][window.currentMonthKey][region][sIdx];
-            const currentObj = (store.status && store.status[day]) ? store.status[day] : { type: undefined };
+
+            const store = db[currentTab][currentMonthKey][region][sIdx];
+            const currentObj = store.status[day] || { type: undefined };
             let nextType, qty = 0, reason = "";
+
             if (!currentObj.type) nextType = 'G';
             else if (currentObj.type === 'G') {
                 nextType = 'R';
-                qty = prompt("Quantidade NÃO realizada:") || 0;
-                reason = prompt("Motivo:") || "";
+                qty = prompt("Quantidade NÃO realizada:");
+                reason = prompt("Motivo:");
             } else if (currentObj.type === 'R') {
                 nextType = 'Y';
-                qty = prompt("Quantidade JUSTIFICADA:") || 0;
-                reason = prompt("Justificativa:") || "";
-            } else nextType = null;
-            set(ref(rdb, `data/${window.currentTab}/${window.currentMonthKey}/${region}/${sIdx}/status/${day}`), nextType ? { type: nextType, qty, reason } : null);
-        };
+                qty = prompt("Quantidade JUSTIFICADA:");
+                reason = prompt("Justificativa:");
+            } else nextType = undefined;
 
-        window.toggleStoreVisibility = (name) => {
-            let list = window.hiddenStoresData[window.currentTab] || [];
-            if (list.includes(name)) list = list.filter(n => n !== name);
-            else if(confirm(`Ocultar ${name}?`)) list.push(name);
-            set(ref(rdb, `hiddenStores/${window.currentTab}`), list);
-        };
+            if (nextType) store.status[day] = { type: nextType, qty: qty || 0, reason: reason || "" };
+            else delete store.status[day];
 
-        window.showAllStores = () => set(ref(rdb, `hiddenStores/${window.currentTab}`), []);
-
-        window.renderAll = () => {
-            renderTable('claudio');
-            renderTable('lekssey');
-            updateDashboard();
-        };
+            save(); renderAll();
+        }
 
         function renderTable(region) {
-            const body = document.getElementById(`body-${region}`);
             const header = document.getElementById(`header-${region}`);
-            const [year, month] = window.currentMonthKey.split('-').map(Number);
+            const body = document.getElementById(`body-${region}`);
+            const [year, month] = currentMonthKey.split('-').map(Number);
             const daysInMonth = new Date(year, month, 0).getDate();
-            header.innerHTML = `<th class="nome-loja">EMPRESA</th>` + Array.from({length: daysInMonth}, (_, i) => {
-                const d = new Date(year, month - 1, i + 1).getDay();
-                return `<th class="${(d===0 || d===6) ? 'bg-fds' : 'bg-white'}">${d===0?'D':d===6?'S':i+1}</th>`;
-            }).join('') + `<th class="bg-yellow-200">META%</th>`;
+
+            let hHtml = `<th class="nome-loja">EMPRESA</th>`;
+            for (let i = 1; i <= daysInMonth; i++) {
+                const dw = new Date(year, month - 1, i).getDay();
+                hHtml += `<th class="${(dw===0 || dw===6) ? 'bg-fds' : 'bg-white'}">${dw===0?'D':dw===6?'S':i}</th>`;
+            }
+            hHtml += `<th class="bg-yellow-200">META%</th><th class="bg-gray-100">ITENS</th>`;
+            header.innerHTML = hHtml;
+
             body.innerHTML = '';
-            let regionalSum = 0;
-            const tabData = window.db[window.currentTab][window.currentMonthKey];
-            if (!tabData || !tabData[region]) return;
-            tabData[region].forEach((store, sIdx) => {
-                const isHidden = (window.hiddenStoresData[window.currentTab] || []).includes(store.name);
+            let regionalMetaSum = 0;
+            const currentHiddenList = hiddenStoresData[currentTab];
+
+            db[currentTab][currentMonthKey][region].forEach((store, sIdx) => {
+                const isHidden = currentHiddenList.includes(store.name);
                 const tr = document.createElement('tr');
                 if (isHidden) tr.classList.add('hidden-store');
-                let wd = 0, red = 0;
-                let cells = `<td class="nome-loja" onclick="toggleStoreVisibility('${store.name}')">${store.name}</td>`;
+
+                let wd = 0, redDays = 0, storeItems = 0;
+                let rHtml = `<td class="nome-loja" onclick="toggleStoreVisibility('${store.name}')">${store.name}</td>`;
+                
                 for (let i = 1; i <= daysInMonth; i++) {
                     const dw = new Date(year, month - 1, i).getDay();
-                    const st = (store.status && store.status[i]) ? store.status[i] : {};
+                    const st = store.status[i] || {};
                     let c = (dw===0 || dw===6) ? 'bg-fds' : 'bg-white';
                     if (st.type === 'G') c = 'bg-executado';
-                    if (st.type === 'R') { c = 'bg-nao-executado'; red++; }
-                    if (st.type === 'Y') c = 'bg-justificado';
+                    if (st.type === 'R') { c = 'bg-nao-executado'; redDays++; storeItems += parseInt(st.qty || 0); }
+                    if (st.type === 'Y') { c = 'bg-justificado'; storeItems += parseInt(st.qty || 0); }
                     if (dw!==0 && dw!==6) wd++;
-                    cells += `<td class="${c} cursor-pointer" onclick="toggle('${region}', ${sIdx}, ${i})"></td>`;
+                    rHtml += `<td class="${c} cursor-pointer" onclick="toggle('${region}', ${sIdx}, ${i})"></td>`;
                 }
-                const meta = wd > 0 ? Math.round(100 - ((red/wd)*100)) : 100;
-                regionalSum += meta;
-                tr.innerHTML = cells + `<td class="font-bold ${meta < 100 ? 'text-red-600' : 'text-green-700'}">${meta}%</td>`;
+
+                const meta = wd > 0 ? Math.round(100 - ((redDays/wd)*100)) : 100;
+                regionalMetaSum += meta;
+                rHtml += `<td class="font-bold ${meta < 100 ? 'text-red-600' : 'text-green-700'}">${meta}%</td>`;
+                rHtml += `<td class="font-bold text-gray-600">${storeItems}</td>`;
+                tr.innerHTML = rHtml;
                 body.appendChild(tr);
             });
-            document.getElementById(`meta-${region}`).innerText = `MÉDIA: ${Math.round(regionalSum / (tabData[region].length || 1))}%`;
+            const regAvg = Math.round(regionalMetaSum / db[currentTab][currentMonthKey][region].length);
+            document.getElementById(`meta-${region}`).innerText = `MÉDIA: ${regAvg}%`;
         }
 
         function updateDashboard() {
-            const tabData = window.db[window.currentTab][window.currentMonthKey];
-            if (!tabData) return;
-            const allStores = [...tabData.claudio, ...tabData.lekssey];
-            let totalRed = 0, sumMeta = 0, bestStore = {name: '-', meta: -1}, worstStore = {name: '-', meta: 101};
-            allStores.forEach(s => {
+            const all = [...db[currentTab][currentMonthKey].claudio, ...db[currentTab][currentMonthKey].lekssey];
+            let sumMeta = 0, totalQty = 0, top = {n: '-', p: -1}, worst = {n: '-', p: 101};
+            all.forEach(s => {
                 let red = 0, wd = 0;
-                const [y, m] = window.currentMonthKey.split('-').map(Number);
+                const [y, m] = currentMonthKey.split('-').map(Number);
                 for(let i=1; i<=31; i++) {
-                    const d = new Date(y, m-1, i);
-                    if(d.getMonth()+1 != m) continue;
-                    if(d.getDay()!==0 && d.getDay()!==6) {
+                    const d = new Date(y, m - 1, i);
+                    if (d.getMonth() + 1 !== m) continue;
+                    const dw = d.getDay();
+                    if(dw !== 0 && dw !== 6) {
                         wd++;
-                        if(s.status && s.status[i] && s.status[i].type === 'R') { red++; totalRed++; }
+                        if(s.status[i] && s.status[i].type === 'R') red++;
                     }
+                    if(s.status[i]) totalQty += parseInt(s.status[i].qty || 0);
                 }
-                const meta = wd > 0 ? Math.round(100 - ((red/wd)*100)) : 100;
-                sumMeta += meta;
-                if(meta > bestStore.meta) bestStore = {name: s.name, meta};
-                if(meta < worstStore.meta) worstStore = {name: s.name, meta};
+                const p = wd > 0 ? Math.round(100 - ((red/wd)*100)) : 100;
+                sumMeta += p;
+                if(p > top.p) top = {n: s.name, p: p};
+                if(p < worst.p) worst = {n: s.name, p: p};
             });
+
             document.getElementById('dashCards').innerHTML = `
-                <div class="bg-slate-800 p-2 border-1-4 border-green-500 rounded">
-                    <p class="text-[13px] font-bold uppercase text-green-400 leading-tight">DESTAQUE (+)</p>
-                    <p class="text-xs font-black truncate">${bestStore.name} (${bestStore.meta}%)</p>
+                <div class="bg-slate-800 p-4 border-l-4 border-green-500 rounded text-sm">
+                    <p class="text-[13px] font-bold text-green-400 uppercase">#1 DESTAQUE POSITIVO</p>
+                    <p class="text-xl font-black">${top.n} (${top.p}%)</p>
                 </div>
-                <div class="bg-slate-800 p-2 border-l-4 border-red-500 rounded">
-                    <p class="text-[13px] font-bold uppercase text-red-400 leading-tight">PENDÊNCIA (-)</p>
-                    <p class="text-xs font-black truncate">${worstStore.name} (${worstStore.meta}%)</p>
+                <div class="bg-slate-800 p-4 border-l-4 border-red-500 rounded text-sm">
+                    <p class="text-[13px] font-bold text-red-400 uppercase">MAIOR PENDÊNCIA</p>
+                    <p class="text-xl font-black">${worst.n} (${worst.p}%)</p>
                 </div>
-                <div class="bg-slate-800 p-2 border-l-4 border-blue-500 rounded text-center">
-                    <p class="text-[13px] font-bold uppercase text-blue-400 leading-tight">MÉDIA REGIONAL</p>
-                    <p class="text-xl font-black">${Math.round(sumMeta / (allStores.length || 1))}%</p>
+                <div class="bg-slate-800 p-4 border-l-4 border-blue-500 rounded text-sm">
+                    <p class="text-[13px] font-bold text-blue-400 uppercase">MÉDIA ${currentTab}</p>
+                    <p class="text-2xl font-black">${Math.round(sumMeta / all.length)}%</p>
                 </div>
-                <div class="bg-slate-800 p-2 border-l-4 border-yellow-500 rounded text-center">
-                    <p class="text-[13px] font-bold uppercase text-yellow-400 leading-tight">TOTAL PENDENTE</p>
-                    <p class="text-xl font-black">${totalRed}</p>
-                </div>
-            `;
+                <div class="bg-slate-800 p-4 border-l-4 border-orange-500 rounded text-sm">
+                    <p class="text-[13px] font-bold text-orange-400 uppercase">TOTAL ITENS PENDENTES</p>
+                    <p class="text-2xl font-black">${totalQty}</p>
+                </div>`;
         }
 
-        window.generatePDF = () => {
+        async function takeScreenshot() {
+            const area = document.getElementById('capture-area');
+            const canvas = await html2canvas(area, {
+                scale: 2, // Aumenta a resolução para o WhatsApp
+                backgroundColor: "#f1f5f9"
+            });
+            const link = document.createElement('a');
+            link.download = `${currentTab}_Regional_${currentMonthKey}.png`;
+            link.href = canvas.toDataURL("image/png"); // CORRIGIDO: de toToDataURL para toDataURL
+            link.click();
+        }
+
+        function generatePDFReport() {
             const { jsPDF } = window.jspdf;
             const doc = new jsPDF('l', 'mm', 'a4');
-            const tabData = window.db[window.currentTab][window.currentMonthKey];
-            doc.setFontSize(16);
-            doc.text(`Relatório Detalhado - ${window.currentTab} (${window.currentMonthKey})`, 10, 15);
-            let y = 30;
-            [...tabData.claudio, ...tabData.lekssey].forEach(store => {
-                let pendencias = [];
-                if(store.status) {
-                    Object.keys(store.status).forEach(day => {
-                        const s = store.status[day];
-                        if(s.type === 'R' || s.type === 'Y') pendencias.push(`Dia ${day}: ${s.type === 'R' ? 'NÃO REALIZADO' : 'JUSTIFICADO'} - Motivo: ${s.reason || 'S/M'} (Qtd: ${s.qty})`);
-                    });
-                }
-                if(pendencias.length > 0) {
-                    if(y > 180) { doc.addPage('l'); y = 20; }
-                    doc.setFontSize(12); doc.setTextColor(0,0,0);
-                    doc.text(`Loja: ${store.name}`, 10, y); y += 7;
-                    doc.setFontSize(9); doc.setTextColor(100);
-                    pendencias.forEach(p => { doc.text(p, 15, y); y += 5; });
-                    y += 5;
-                }
-            });
-            doc.save(`Relatorio_${window.currentTab}.pdf`);
-        };
+            doc.text(`Relatório ${currentTab} - ${currentMonthKey}`, 10, 15);
+            doc.save(`Relatorio_${currentTab}_${currentMonthKey}.pdf`);
+        }
 
-        window.takeScreenshot = async () => {
-            const canvas = await html2canvas(document.getElementById('capture-area'), { scale: 5 });
-            const link = document.createElement('a');
-            link.download = `Print_${window.currentTab}.png`;
-            link.href = canvas.toDataURL();
-            link.click();
-        };
+        function save() { localStorage.setItem('regional_data_v6', JSON.stringify(db)); }
+        function renderAll() { renderTable('claudio'); renderTable('lekssey'); updateDashboard(); }
+        function changeMonth() { currentMonthKey = document.getElementById('monthPicker').value; checkMonthStructure(currentMonthKey); renderAll(); }
+        function clearMonthData() { if(confirm("Resetar este mês?")) { ['claudio','lekssey'].forEach(r => db[currentTab][currentMonthKey][r].forEach(s => s.status = {})); save(); renderAll(); } }
 
-        window.clearMonthData = () => { if(confirm("Limpar dados do mês?")) set(ref(rdb, `data/${window.currentTab}/${window.currentMonthKey}`), null); };
-
-        document.getElementById('monthPicker').value = window.currentMonthKey;
-        document.getElementById('monthPicker').onchange = window.changeMonth;
+        init();
     </script>
 </body>
 </html>
