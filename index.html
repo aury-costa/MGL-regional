@@ -17,10 +17,9 @@
         th, td { border: 1px solid #9ca3af; text-align: center; padding: 5px; font-size: 11px; min-width: 28px; height: 32px; }
         .nome-loja { text-align: left; padding-left: 10px; font-weight: bold; background-color: #f5dd7c; min-width: 120px; font-size: 15px; cursor: pointer; }
         .titulo-regional { background-color: #1b4332; color: white; padding: 10px; font-weight: 500; text-transform: uppercase; font-size: 20px; }
-        .hidden-store { display: none; }
+        .hidden-store { display: none !important; }
         
-        /* Ajuste Fino de Scroll e Layout */
-        #capture-area { display: flex; flex-direction: column; flex-grow: 1; overflow: hidden; border: 8px solid #cbd5e1; }
+        #capture-area { display: flex; flex-direction: column; flex-grow: 1; overflow: hidden; border: 1px solid #cbd5e1; }
         .scroll-container { flex-grow: 1; overflow-y: auto; padding: 8px; background: white; }
         
         .tab-active { border-bottom: 4px solid #1b4332; color: #1b4332; font-weight: 900; }
@@ -74,8 +73,7 @@
             </section>
         </div>
 
-        <div id="dashCards" class="flex-none grid grid-cols-2 md:grid-cols-4 gap-2 py-2 px-3 bg-slate-900 text-white border-t-4 border-yellow-500">
-            </div>
+        <div id="dashCards" class="flex-none grid grid-cols-2 md:grid-cols-4 gap-2 py-2 px-3 bg-slate-900 text-white border-t-4 border-yellow-500"></div>
     </div>
 
     <script type="module">
@@ -95,9 +93,10 @@
         const app = initializeApp(firebaseConfig);
         const rdb = getDatabase(app);
 
+        // LOJAS ATUALIZADAS COM AS NOVAS UNIDADES
         const LOJAS_PADRAO = {
             claudio: ["001-AFL", "002-APIACAS", "003-PAR", "010-GTA", "011-PEIXOTO", "015-TNN", "502-CA-GTA-C", "503-CA-SNP-J", "506-CA-SNP-A", "508-CA-MTP-I"],
-            lekssey: ["004-SORBH", "005-LRVCEN", "006-MUTUM", "008-LRVVEN", "012-SORBR", "018-SOR-RDS", "505-CA-SORRI"]
+            lekssey: ["004-SORBH", "005-LRVCEN", "006-MUTUM", "008-LRVVEN", "009-TAPURAH", "012-SORBR", "013-DNSOR", "016-DNMUTUM", "018-SOR-RDS", "505-CA-SORRI"]
         };
 
         window.currentTab = 'MGL';
@@ -114,8 +113,8 @@
         });
 
         onValue(ref(rdb, 'hiddenStores/'), (snapshot) => {
-            const val = snapshot.val();
-            if (val) window.hiddenStoresData = val;
+            const val = snapshot.val() || { MGL: [], QUEBRA: [], MESA: [] };
+            window.hiddenStoresData = val;
             renderAll();
         });
 
@@ -143,34 +142,22 @@
             }
         }
 
-        window.toggle = (region, sIdx, day) => {
-            const [year, month] = window.currentMonthKey.split('-').map(Number);
-            const date = new Date(year, month - 1, day);
-            if (date.getDay() === 0 || date.getDay() === 6) return;
-            const store = window.db[window.currentTab][window.currentMonthKey][region][sIdx];
-            const currentObj = (store.status && store.status[day]) ? store.status[day] : { type: undefined };
-            let nextType, qty = 0, reason = "";
-            if (!currentObj.type) nextType = 'G';
-            else if (currentObj.type === 'G') {
-                nextType = 'R';
-                qty = prompt("Quantidade NÃO realizada:") || 0;
-                reason = prompt("Motivo:") || "";
-            } else if (currentObj.type === 'R') {
-                nextType = 'Y';
-                qty = prompt("Quantidade JUSTIFICADA:") || 0;
-                reason = prompt("Justificativa:") || "";
-            } else nextType = null;
-            set(ref(rdb, `data/${window.currentTab}/${window.currentMonthKey}/${region}/${sIdx}/status/${day}`), nextType ? { type: nextType, qty, reason } : null);
-        };
-
         window.toggleStoreVisibility = (name) => {
-            let list = window.hiddenStoresData[window.currentTab] || [];
-            if (list.includes(name)) list = list.filter(n => n !== name);
-            else if(confirm(`Ocultar ${name}?`)) list.push(name);
+            let list = Array.isArray(window.hiddenStoresData[window.currentTab]) ? [...window.hiddenStoresData[window.currentTab]] : [];
+            if (list.includes(name)) {
+                list = list.filter(n => n !== name);
+            } else {
+                if(confirm(`Ocultar ${name}?`)) list.push(name);
+            }
             set(ref(rdb, `hiddenStores/${window.currentTab}`), list);
         };
 
-        window.showAllStores = () => set(ref(rdb, `hiddenStores/${window.currentTab}`), []);
+        window.showAllStores = () => {
+            set(ref(rdb, `hiddenStores/${window.currentTab}`), []).then(() => {
+                window.hiddenStoresData[window.currentTab] = [];
+                renderAll();
+            });
+        };
 
         window.renderAll = () => {
             renderTable('claudio');
@@ -183,18 +170,24 @@
             const header = document.getElementById(`header-${region}`);
             const [year, month] = window.currentMonthKey.split('-').map(Number);
             const daysInMonth = new Date(year, month, 0).getDate();
+            
             header.innerHTML = `<th class="nome-loja">EMPRESA</th>` + Array.from({length: daysInMonth}, (_, i) => {
                 const d = new Date(year, month - 1, i + 1).getDay();
                 return `<th class="${(d===0 || d===6) ? 'bg-fds' : 'bg-white'}">${d===0?'D':d===6?'S':i+1}</th>`;
             }).join('') + `<th class="bg-yellow-200">META%</th>`;
+            
             body.innerHTML = '';
             let regionalSum = 0;
             const tabData = window.db[window.currentTab][window.currentMonthKey];
             if (!tabData || !tabData[region]) return;
+
             tabData[region].forEach((store, sIdx) => {
-                const isHidden = (window.hiddenStoresData[window.currentTab] || []).includes(store.name);
+                const hList = window.hiddenStoresData[window.currentTab] || [];
+                const isHidden = hList.includes(store.name);
+                
                 const tr = document.createElement('tr');
-                if (isHidden) tr.classList.add('hidden-store');
+                if (isHidden) tr.className = 'hidden-store';
+
                 let wd = 0, red = 0;
                 let cells = `<td class="nome-loja" onclick="toggleStoreVisibility('${store.name}')">${store.name}</td>`;
                 for (let i = 1; i <= daysInMonth; i++) {
@@ -214,6 +207,26 @@
             });
             document.getElementById(`meta-${region}`).innerText = `MÉDIA: ${Math.round(regionalSum / (tabData[region].length || 1))}%`;
         }
+
+        window.toggle = (region, sIdx, day) => {
+            const [year, month] = window.currentMonthKey.split('-').map(Number);
+            const date = new Date(year, month - 1, day);
+            if (date.getDay() === 0 || date.getDay() === 6) return;
+            const store = window.db[window.currentTab][window.currentMonthKey][region][sIdx];
+            const currentObj = (store.status && store.status[day]) ? store.status[day] : { type: undefined };
+            let nextType, qty = 0, reason = "";
+            if (!currentObj.type) nextType = 'G';
+            else if (currentObj.type === 'G') {
+                nextType = 'R';
+                qty = prompt("Quantidade NÃO realizada:") || 0;
+                reason = prompt("Motivo:") || "";
+            } else if (currentObj.type === 'R') {
+                nextType = 'Y';
+                qty = prompt("Quantidade JUSTIFICADA:") || 0;
+                reason = prompt("Justificativa:") || "";
+            } else nextType = null;
+            set(ref(rdb, `data/${window.currentTab}/${window.currentMonthKey}/${region}/${sIdx}/status/${day}`), nextType ? { type: nextType, qty, reason } : null);
+        };
 
         function updateDashboard() {
             const tabData = window.db[window.currentTab][window.currentMonthKey];
@@ -237,20 +250,20 @@
                 if(meta < worstStore.meta) worstStore = {name: s.name, meta};
             });
             document.getElementById('dashCards').innerHTML = `
-                <div class="bg-slate-800 p-2 border-1-4 border-green-500 rounded">
-                    <p class="text-[13px] font-bold uppercase text-green-400 leading-tight">DESTAQUE (+)</p>
+                <div class="bg-slate-800 p-2 border-l-4 border-green-500 rounded">
+                    <p class="text-[9px] font-bold uppercase text-green-400 leading-tight">DESTAQUE (+)</p>
                     <p class="text-xs font-black truncate">${bestStore.name} (${bestStore.meta}%)</p>
                 </div>
                 <div class="bg-slate-800 p-2 border-l-4 border-red-500 rounded">
-                    <p class="text-[13px] font-bold uppercase text-red-400 leading-tight">PENDÊNCIA (-)</p>
+                    <p class="text-[9px] font-bold uppercase text-red-400 leading-tight">PENDÊNCIA (-)</p>
                     <p class="text-xs font-black truncate">${worstStore.name} (${worstStore.meta}%)</p>
                 </div>
                 <div class="bg-slate-800 p-2 border-l-4 border-blue-500 rounded text-center">
-                    <p class="text-[13px] font-bold uppercase text-blue-400 leading-tight">MÉDIA REGIONAL</p>
+                    <p class="text-[9px] font-bold uppercase text-blue-400 leading-tight">MÉDIA REGIONAL</p>
                     <p class="text-xl font-black">${Math.round(sumMeta / (allStores.length || 1))}%</p>
                 </div>
                 <div class="bg-slate-800 p-2 border-l-4 border-yellow-500 rounded text-center">
-                    <p class="text-[13px] font-bold uppercase text-yellow-400 leading-tight">TOTAL PENDENTE</p>
+                    <p class="text-[9px] font-bold uppercase text-yellow-400 leading-tight">TOTAL PENDENTE</p>
                     <p class="text-xl font-black">${totalRed}</p>
                 </div>
             `;
@@ -263,35 +276,37 @@
             doc.setFontSize(16);
             doc.text(`Relatório Detalhado - ${window.currentTab} (${window.currentMonthKey})`, 10, 15);
             let y = 30;
-            [...tabData.claudio, ...tabData.lekssey].forEach(store => {
-                let pendencias = [];
-                if(store.status) {
-                    Object.keys(store.status).forEach(day => {
-                        const s = store.status[day];
-                        if(s.type === 'R' || s.type === 'Y') pendencias.push(`Dia ${day}: ${s.type === 'R' ? 'NÃO REALIZADO' : 'JUSTIFICADO'} - Motivo: ${s.reason || 'S/M'} (Qtd: ${s.qty})`);
-                    });
-                }
-                if(pendencias.length > 0) {
-                    if(y > 180) { doc.addPage('l'); y = 20; }
-                    doc.setFontSize(12); doc.setTextColor(0,0,0);
-                    doc.text(`Loja: ${store.name}`, 10, y); y += 7;
-                    doc.setFontSize(9); doc.setTextColor(100);
-                    pendencias.forEach(p => { doc.text(p, 15, y); y += 5; });
-                    y += 5;
-                }
-            });
+            if(tabData) {
+                [...tabData.claudio, ...tabData.lekssey].forEach(store => {
+                    let pendencias = [];
+                    if(store.status) {
+                        Object.keys(store.status).forEach(day => {
+                            const s = store.status[day];
+                            if(s.type === 'R' || s.type === 'Y') pendencias.push(`Dia ${day}: ${s.type === 'R' ? 'NÃO REALIZADO' : 'JUSTIFICADO'} - Motivo: ${s.reason || 'S/M'} (Qtd: ${s.qty})`);
+                        });
+                    }
+                    if(pendencias.length > 0) {
+                        if(y > 180) { doc.addPage('l'); y = 20; }
+                        doc.setFontSize(12); doc.setTextColor(0,0,0);
+                        doc.text(`Loja: ${store.name}`, 10, y); y += 7;
+                        doc.setFontSize(9); doc.setTextColor(100);
+                        pendencias.forEach(p => { doc.text(p, 15, y); y += 5; });
+                        y += 5;
+                    }
+                });
+            }
             doc.save(`Relatorio_${window.currentTab}.pdf`);
         };
 
         window.takeScreenshot = async () => {
-            const canvas = await html2canvas(document.getElementById('capture-area'), { scale: 5 });
+            const canvas = await html2canvas(document.getElementById('capture-area'), { scale: 2 });
             const link = document.createElement('a');
             link.download = `Print_${window.currentTab}.png`;
             link.href = canvas.toDataURL();
             link.click();
         };
 
-        window.clearMonthData = () => { if(confirm("Limpar dados do mês?")) set(ref(rdb, `data/${window.currentTab}/${window.currentMonthKey}`), null); };
+        window.clearMonthData = () => { if(confirm("Limpar dados do mês nesta aba para atualizar a lista de lojas?")) set(ref(rdb, `data/${window.currentTab}/${window.currentMonthKey}`), null); };
 
         document.getElementById('monthPicker').value = window.currentMonthKey;
         document.getElementById('monthPicker').onchange = window.changeMonth;
