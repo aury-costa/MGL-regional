@@ -58,7 +58,7 @@
                 <button onclick="takeScreenshot()" class="bg-blue-600 text-white px-3 py-2 text-xs rounded font-bold shadow-md hover:bg-blue-700">📸 PRINT WHATSAPP</button>
                 <button onclick="generatePDF()" class="bg-red-700 text-white px-3 py-2 text-xs rounded font-bold shadow-md hover:bg-red-800">📄 PDF DETALHADO</button>
                 <button onclick="showAllStores()" class="bg-gray-600 text-white px-3 py-2 text-xs rounded font-bold">👁 MOSTRAR TODAS</button>
-                <button onclick="clearMonthData()" class="bg-white text-red-600 border border-red-600 px-3 py-2 text-xs rounded font-bold hover:bg-red-50">LIMPAR</button>
+                <button onclick="clearMonthData()" class="bg-white text-red-600 border border-red-600 px-3 py-2 text-xs rounded font-bold hover:bg-red-50">LIMPAR ABA</button>
             </div>
         </div>
 
@@ -93,7 +93,7 @@
         const app = initializeApp(firebaseConfig);
         const rdb = getDatabase(app);
 
-        // LOJAS ATUALIZADAS COM AS NOVAS UNIDADES
+        // LISTA PADRÃO ATUALIZADA - SERVIRÁ PARA TODAS AS ABAS
         const LOJAS_PADRAO = {
             claudio: ["001-AFL", "002-APIACAS", "003-PAR", "010-GTA", "011-PEIXOTO", "015-TNN", "502-CA-GTA-C", "503-CA-SNP-J", "506-CA-SNP-A", "508-CA-MTP-I"],
             lekssey: ["004-SORBH", "005-LRVCEN", "006-MUTUM", "008-LRVVEN", "009-TAPURAH", "012-SORBR", "013-DNSOR", "016-DNMUTUM", "018-SOR-RDS", "505-CA-SORRI"]
@@ -120,7 +120,8 @@
 
         window.switchTab = (tabName) => {
             window.currentTab = tabName;
-            document.getElementById('main-title').innerText = (tabName === 'MGL' ? 'Minha Gestão de Loja (MGL)' : tabName === 'QUEBRA' ? 'Quebra Diária' : 'Mesa Quente');
+            const titles = { 'MGL': 'Minha Gestão de Loja (MGL)', 'QUEBRA': 'Quebra Diária', 'MESA': 'Mesa Quente' };
+            document.getElementById('main-title').innerText = titles[tabName];
             ['MGL', 'QUEBRA', 'MESA'].forEach(t => document.getElementById(`btn-${t}`).classList.toggle('tab-active', t === tabName));
             checkMonthStructure();
             renderAll();
@@ -132,8 +133,11 @@
             renderAll();
         };
 
+        // FUNÇÃO QUE GARANTE QUE TODAS AS LOJAS EXISTAM NA ABA SELECIONADA
         function checkMonthStructure() {
             if (!window.db[window.currentTab]) window.db[window.currentTab] = {};
+            
+            // Se o mês não existe ou se a lista de lojas está incompleta, recria
             if (!window.db[window.currentTab][window.currentMonthKey]) {
                 const base = { claudio: [], lekssey: [] };
                 LOJAS_PADRAO.claudio.forEach(n => base.claudio.push({ name: n, status: {} }));
@@ -178,7 +182,8 @@
             
             body.innerHTML = '';
             let regionalSum = 0;
-            const tabData = window.db[window.currentTab][window.currentMonthKey];
+            
+            const tabData = window.db[window.currentTab] ? window.db[window.currentTab][window.currentMonthKey] : null;
             if (!tabData || !tabData[region]) return;
 
             tabData[region].forEach((store, sIdx) => {
@@ -229,16 +234,18 @@
         };
 
         function updateDashboard() {
-            const tabData = window.db[window.currentTab][window.currentMonthKey];
+            const tabData = window.db[window.currentTab] ? window.db[window.currentTab][window.currentMonthKey] : null;
             if (!tabData) return;
-            const allStores = [...tabData.claudio, ...tabData.lekssey];
+            const allStores = [...(tabData.claudio || []), ...(tabData.lekssey || [])];
+            if (allStores.length === 0) return;
+
             let totalRed = 0, sumMeta = 0, bestStore = {name: '-', meta: -1}, worstStore = {name: '-', meta: 101};
             allStores.forEach(s => {
                 let red = 0, wd = 0;
                 const [y, m] = window.currentMonthKey.split('-').map(Number);
-                for(let i=1; i<=31; i++) {
+                const days = new Date(y, m, 0).getDate();
+                for(let i=1; i<=days; i++) {
                     const d = new Date(y, m-1, i);
-                    if(d.getMonth()+1 != m) continue;
                     if(d.getDay()!==0 && d.getDay()!==6) {
                         wd++;
                         if(s.status && s.status[i] && s.status[i].type === 'R') { red++; totalRed++; }
@@ -306,7 +313,11 @@
             link.click();
         };
 
-        window.clearMonthData = () => { if(confirm("Limpar dados do mês nesta aba para atualizar a lista de lojas?")) set(ref(rdb, `data/${window.currentTab}/${window.currentMonthKey}`), null); };
+        window.clearMonthData = () => { 
+            if(confirm("Deseja limpar os dados desta aba? Isso atualizará a lista de lojas para o padrão atual.")) {
+                set(ref(rdb, `data/${window.currentTab}/${window.currentMonthKey}`), null); 
+            }
+        };
 
         document.getElementById('monthPicker').value = window.currentMonthKey;
         document.getElementById('monthPicker').onchange = window.changeMonth;
